@@ -119,6 +119,10 @@
 #
     $background = "";  $transparent = "ff/ff/ff";
 #
+#   TeX command for processing
+#
+    $cmdTeX = 'latex';
+#
 #   Image generation and decoding commands for GIF and PNG output.
 #
     $cmdGIF = 'ppmtogif';
@@ -156,6 +160,8 @@
 	    $imageCmd = $cmdPNG;
 	    $imageCmdD = $cmdPNGdecode;
 	    $imageExt = 'png';
+        } elsif (m/^-x/) {            # -xetex
+	    $cmdTeX = 'xelatex'
         } elsif (m/^-r/) {            # -res nnn
             $res = shift(@ARGV);
         } elsif (m/^-v/) {            # -version
@@ -168,7 +174,7 @@
     #
     foreach $f (@ARGV) {
         $f =~ s/(.*)\.tex$/$1/;
-        &syscmd("echo x | latex  $f \n");
+        &syscmd("echo x | $cmdTeX $f \n");
         &syscmd("dvips -f $f >_temp_$$.ps\n");
 	    
 	#   Assemble and execute the command pipeline which generates the image.
@@ -223,6 +229,7 @@ usage: textogif [ options ] texfile...
         -grey           Grey scale background level: 0 = black, 1 = white (default)
         -help           Print this message
         -png            Generate PNG image
+        -xetex          Use XeLaTeX instead of LaTeX
         -res n          Set oversampling ratio, smaller = finer (default 0.5)
         -version        Print version number
 For documentation and the latest version of this program
