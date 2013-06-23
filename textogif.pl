@@ -1,11 +1,14 @@
-#! /usr/bin/perl
+#! /usr/bin/env perl
+use strict;
+use warnings;
+
 #
 #                          T E X T O G I F
 #
 #                          by John Walker
 #                      http://www.fourmilab.ch/
 #
-          	     $version = '1.1 (2003-11-07)';
+          	     my $version = '1.1 (2003-11-07)';
 #
 #
 #   Converts a LaTeX file containing equations(s) into a GIF file for
@@ -83,7 +86,7 @@
 #   doubles the size of equations.  The setting of $dpi can always be
 #   overridden by specifying the "-dpi" command line option.
 #
-    $dpi = 150;
+my $dpi = 150;
 #
 #   The parameter $res specifies the oversampling as the ratio
 #   of the final image size to the initial black and white image.
@@ -94,7 +97,7 @@
 #   1.0 disables antialiasing entirely.  The setting of $res can
 #   always be overridden by specifying the "res" command line option.
 #
-    $res = 0.5;
+my $res = 0.5;
 #
 #   The $background parameter supplies a command, which may be
 #   void, to be inserted in the image processing pipeline to
@@ -117,124 +120,127 @@
 #   distracting "halo" around each character.  You can override this
 #   default specification with the -grey command line option.
 #
-    $background = "";  $transparent = "ff/ff/ff";
+my $background = ""; my $transparent = "ff/ff/ff";
 #
 #   TeX command for processing
 #
-    $cmdTeX = 'latex';
+my $cmdTeX = 'latex';
 #
 #   Image generation and decoding commands for GIF and PNG output.
 #
-    $cmdGIF = 'ppmtogif';
-    $cmdGIFdecode = 'giftopnm';
-    $cmdPNG = 'pnmtopng';
-    $cmdPNGdecode = 'pngtopnm';
+my $cmdGIF = 'ppmtogif';
+my $cmdGIFdecode = 'giftopnm';
+my $cmdPNG = 'pnmtopng';
+my $cmdPNGdecode = 'pngtopnm';
 #
 #   Default image creation modes
 #
+my $imageCmd = $cmdGIF;
+my $imageCmdD = $cmdGIFdecode;
+my $imageExt = 'gif';
+
+#
+#   Command line option processing
+#
+use Getopt::Long;
+GetOptions(
+  'dpi=i' => \$dpi,
+  'gif'   => sub {
     $imageCmd = $cmdGIF;
     $imageCmdD = $cmdGIFdecode;
     $imageExt = 'gif';
+  },
+  'grey=f' => sub {
+    my (undef, $grey) = @_;
+    $background = "ppmdim $grey | ";
+    my $greylev = int(255 * $grey);
+    $transparent = sprintf("%02x/%02x/%02x", $greylev, $greylev, $greylev);
+  },
+  'help' => \&help,
+  'png' => sub {
+    $imageCmd = $cmdPNG;
+    $imageCmdD = $cmdPNGdecode;
+    $imageExt = 'png';
+  },
+  'xetex'   => sub { $cmdTeX = 'xelatex' },
+  'res=i'   => \$res,
+  'version' => \&version,
+);
 
-    #
-    #   Command line option processing
-    #
-    while ($ARGV[0] =~ m/^-/) {
-        $_ = shift(@ARGV);
-	s/^--/-/;   	    	      # Allow GNU-style -- options
-        if (m/^-d/) {                 # -dpi nnn
-            $dpi = shift(@ARGV);
-        } elsif (m/^-gi/) {           # -gif
-	    $imageCmd = $cmdGIF;
-	    $imageCmdD = $cmdGIFdecode;
-	    $imageExt = 'gif';
-        } elsif (m/^-gr/) {           # -grey n
-	    $grey = shift(@ARGV);
-	    $background = "ppmdim $grey | ";
-	    $greylev = int(255 * $grey);
-	    $transparent = sprintf("%02x/%02x/%02x", $greylev, $greylev, $greylev);
-        } elsif (m/^-h/) {            # -help
-	    &help();
-	    exit(0);
-        } elsif (m/^-p/) {            # -png
-	    $imageCmd = $cmdPNG;
-	    $imageCmdD = $cmdPNGdecode;
-	    $imageExt = 'png';
-        } elsif (m/^-x/) {            # -xetex
-	    $cmdTeX = 'xelatex'
-        } elsif (m/^-r/) {            # -res nnn
-            $res = shift(@ARGV);
-        } elsif (m/^-v/) {            # -version
-	    print("Version $version\n");
-	    exit(0);
-        }
-    }
-    #
-    #   Main file processing loop
-    #
-    foreach $f (@ARGV) {
-        $f =~ s/(.*)\.tex$/$1/;
-        &syscmd("echo x | $cmdTeX $f \n");
-        &syscmd("dvips -f $f >_temp_$$.ps\n");
+
+#
+#   Main file processing loop
+#
+foreach my $f (@ARGV) {
+  $f =~ s/(.*)\.tex$/$1/;
+  syscmd("echo x | $cmdTeX $f \n");
+  syscmd("dvips -f $f >_temp_$$.ps\n");
 	    
-	#   Assemble and execute the command pipeline which generates the image.
+  #   Assemble and execute the command pipeline which generates the image.
 
-	#   Start by invoking Ghostscript with the pbmraw output device and
-	#   output file set to standard output ("-") and the requested resolution.
-	#   The -q (Quiet) option is required; otherwise Ghostscript will send
-	#   processing information to standard output and corrupt transmission
-	#   of the bitmap to the next component in the pipeline.
-    	$cmd = "echo quit | gs -q -dNOPAUSE  -r" . int($dpi / $res). "x". int($dpi / $res) .
-	    	" -sOutputFile=- -sDEVICE=pbmraw _temp_$$.ps | " .
+  #   Start by invoking Ghostscript with the pbmraw output device and
+  #   output file set to standard output ("-") and the requested resolution.
+  #   The -q (Quiet) option is required; otherwise Ghostscript will send
+  #   processing information to standard output and corrupt transmission
+  #   of the bitmap to the next component in the pipeline.
+  my $cmd = "echo quit | gs -q -dNOPAUSE  -r" . int($dpi / $res). "x". int($dpi / $res) .
+            " -sOutputFile=- -sDEVICE=pbmraw _temp_$$.ps | ";
+
+  #   Next we crop white space surrounding the generated text, promote
+  #   the monochrome bitmap to a grey scale image with 8 bits per pixel,
+  #   apply whatever background adjustment transform is requested, and
+  #   scale the image to the desired size.
+  $cmd .= "pnmcrop -white | pnmdepth 255 | $background pnmscale $res | ";
 		
-	#   Next we crop white space surrounding the generated text, promote
-	#   the monochrome bitmap to a grey scale image with 8 bits per pixel,
-	#   apply whatever background adjustment transform is requested, and
-	#   scale the image to the desired size.
-	    	"pnmcrop -white | pnmdepth 255 | $background pnmscale " .
-                $res . " | " .
-		
-	#   Finally, convert the image to the desired output format and write
-	#   the output file.
-            	"$imageCmd -interlace -transparent rgb:$transparent >$f.$imageExt";
-	&syscmd($cmd);
+  #   Finally, convert the image to the desired output format and write
+  #   the output file.
+  $cmd .= "$imageCmd -interlace -transparent rgb:$transparent >$f.$imageExt";
+  syscmd($cmd);
 
-    	#   Sweep up debris left around by the various intermediate steps
-        &syscmd("rm $f.dvi $f.aux $f.log _temp_$$.ps");
+  #   Sweep up debris left around by the various intermediate steps
+  syscmd("rm $f.dvi $f.aux $f.log _temp_$$.ps");
 
-	#   Print the reference to include this figure, including width and height,
-	#   to standard error.
-        $r = `$imageCmdD $f.$imageExt | pnmfile`;
-        $r =~ m/(\d+) by (\d+)/;
-        print(STDERR "<img src=\"$f.$imageExt\" width=\"$1\" height=\"$2\">\n");
-    }
+  #   Print the reference to include this figure, including width and height,
+  #   to standard error.
+  my $r = `$imageCmdD $f.$imageExt | pnmfile`;
+  my ($width, $height) = $r =~ m/(\d+) by (\d+)/;
+  print STDERR qq{<img src="$f.$imageExt" width="$1" height="$2">\n};
+}
     
-    #	Echo and execute a system command
+#  Echo and execute a system command
     
-    sub syscmd {
-    	local ($cmd) = @_;
+sub syscmd {
+  my ($cmd) = @_;
 	
-	print(STDERR "$cmd\n");
-	system($cmd) == 0 || die("Error processing command:\n\t$cmd\n\t");
-    }
+  print STDERR "$cmd\n";
+  system($cmd) == 0 || die("Error processing command:\n\t$cmd\n\t");
+}
 
-    #	Print help text
+#  Print help text
     
-    sub help {
-    	print <<"EOD"
+sub help {
+  print <<"EOD";
 usage: textogif [ options ] texfile...
     Options:
-        -dpi n          Set rendering dots per inch to n (default 150)
-        -gif            Generate GIF image (default)
-        -grey           Grey scale background level: 0 = black, 1 = white (default)
-        -help           Print this message
-        -png            Generate PNG image
-        -xetex          Use XeLaTeX instead of LaTeX
-        -res n          Set oversampling ratio, smaller = finer (default 0.5)
-        -version        Print version number
+        --dpi n          Set rendering dots per inch to n (default 150)
+        --gif            Generate GIF image (default)
+        --grey           Grey scale background level: 0 = black, 1 = white (default)
+        --help           Print this message
+        --png            Generate PNG image
+        --xetex          Use XeLaTeX instead of LaTeX
+        --res n          Set oversampling ratio, smaller = finer (default 0.5)
+        --version        Print version number
 For documentation and the latest version of this program
 please visit the Web page:
     http://www.fourmilab.ch/webtools/textogif/
 EOD
-;
-    }
+  exit 0;
+}
+
+#  Print version text
+
+sub version {
+  print "Version $version\n";
+  exit 0;
+}
+
