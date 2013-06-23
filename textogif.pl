@@ -203,8 +203,8 @@ foreach my $f (@ARGV) {
   #   Print the reference to include this figure, including width and height,
   #   to standard error.
   my $r = `$imageCmdD $f.$imageExt | pnmfile`;
-  my ($width, $height) = $r =~ m/(\d+) by (\d+)/;
-  print STDERR qq{<img src="$f.$imageExt" width="$1" height="$2">\n};
+  my ($h, $w) = $r =~ m/(\d+) by (\d+)/;
+  print STDERR qq{<img src="$f.$imageExt" width="$w" height="$h">\n};
 }
     
 #  Echo and execute a system command
